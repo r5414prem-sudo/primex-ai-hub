@@ -1,5 +1,5 @@
--- Prime X AI Hub v2.0 - Enhanced Edition
--- Powered by Groq AI with Auto-Detection Features
+-- Prime X AI Hub v2.0 - Full Executor Version
+-- Powered by Groq AI with Auto-Detection
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -15,48 +15,9 @@ local playerGui = player:WaitForChild("PlayerGui")
 -- Detect platform
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
--- Utility Functions
-local function detectExploitTools()
-    local tools = {
-        dex = false,
-        remoteSpy = false,
-        hydroxide = false,
-        simpleSpyV3 = false
-    }
-    
-    -- Check for Dex Explorer
-    for _, gui in pairs(CoreGui:GetChildren()) do
-        if gui.Name:lower():find("dex") or gui.Name:lower():find("explorer") then
-            tools.dex = true
-        end
-    end
-    
-    for _, gui in pairs(playerGui:GetChildren()) do
-        if gui.Name:lower():find("dex") or gui.Name:lower():find("explorer") then
-            tools.dex = true
-        end
-    end
-    
-    -- Check for Remote Spy
-    for _, gui in pairs(CoreGui:GetChildren()) do
-        if gui.Name:lower():find("remote") or gui.Name:lower():find("spy") then
-            tools.remoteSpy = true
-        end
-    end
-    
-    for _, gui in pairs(playerGui:GetChildren()) do
-        if gui.Name:lower():find("remote") or gui.Name:lower():find("spy") or 
-           gui.Name:lower():find("simplespy") then
-            tools.remoteSpy = true
-        end
-    end
-    
-    return tools
-end
-
 -- Safe clipboard function
 local function safeSetClipboard(text)
-    local success, err = pcall(function()
+    local success = pcall(function()
         if setclipboard then
             setclipboard(text)
             return true
@@ -66,17 +27,43 @@ local function safeSetClipboard(text)
         elseif syn and syn.write_clipboard then
             syn.write_clipboard(text)
             return true
-        else
-            return false
         end
     end)
     return success
 end
 
+-- Detect exploit tools
+local function detectExploitTools()
+    local tools = {dex = false, remoteSpy = false}
+    
+    for _, gui in pairs(CoreGui:GetChildren()) do
+        local name = gui.Name:lower()
+        if name:find("dex") or name:find("explorer") then
+            tools.dex = true
+        end
+        if name:find("remote") or name:find("spy") then
+            tools.remoteSpy = true
+        end
+    end
+    
+    for _, gui in pairs(playerGui:GetChildren()) do
+        local name = gui.Name:lower()
+        if name:find("dex") or name:find("explorer") then
+            tools.dex = true
+        end
+        if name:find("remote") or name:find("spy") or name:find("simplespy") then
+            tools.remoteSpy = true
+        end
+    end
+    
+    return tools
+end
+
+-- Scan remotes
 local function scanRemotes()
     local remotes = {events = {}, functions = {}}
     
-    local function scanInstance(instance)
+    local function scan(instance)
         for _, child in pairs(instance:GetDescendants()) do
             if child:IsA("RemoteEvent") then
                 table.insert(remotes.events, child:GetFullName())
@@ -86,43 +73,41 @@ local function scanRemotes()
         end
     end
     
-    scanInstance(ReplicatedStorage)
-    scanInstance(game:GetService("Workspace"))
+    pcall(function() scan(ReplicatedStorage) end)
+    pcall(function() scan(workspace) end)
     
     return remotes
 end
 
+-- Get game info
 local function getGameInfo()
     return {
         name = game.Name,
         placeId = game.PlaceId,
-        jobId = game.JobId,
         players = #Players:GetPlayers(),
-        maxPlayers = Players.MaxPlayers,
-        creator = game.CreatorType.Name
+        maxPlayers = Players.MaxPlayers
     }
 end
 
--- AI Request Function (Enhanced)
+-- AI Request
 local function aiRequest(endpoint, data)
     local success, response = pcall(function()
         return HttpService:RequestAsync({
             Url = API_URL .. endpoint,
             Method = "POST",
             Headers = {["Content-Type"] = "application/json"},
-            Body = HttpService:JSONEncode(data)
+            Body = HttpService:JSONEncode(data),
+            Timeout = 30
         })
     end)
     
-    if success and response.StatusCode == 200 then
+    if success and response and response.StatusCode == 200 then
         return HttpService:JSONDecode(response.Body)
-    else
-        warn("AI Request failed:", response and response.StatusMessage or "Unknown error")
-        return nil
     end
+    return nil
 end
 
--- Draggable Frame Function
+-- Make draggable
 local function makeDraggable(frame)
     local dragging, dragInput, dragStart, startPos
     
@@ -133,8 +118,7 @@ local function makeDraggable(frame)
     end
     
     frame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
-           input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true
             dragStart = input.Position
             startPos = frame.Position
@@ -148,298 +132,290 @@ local function makeDraggable(frame)
     end)
     
     frame.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or 
-           input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
             dragInput = input
         end
     end)
     
-    game:GetService("UserInputService").InputChanged:Connect(function(input)
+    UserInputService.InputChanged:Connect(function(input)
         if input == dragInput and dragging then
             update(input)
         end
     end)
 end
 
--- Create Enhanced UI (Mobile Responsive)
+-- Create UI
 local function createUI()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "PrimeXAIHub"
-    screenGui.ResetOnSpawn = false
-    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    screenGui.IgnoreGuiInset = true
+    if playerGui:FindFirstChild("PrimeXHub") then
+        playerGui.PrimeXHub:Destroy()
+    end
     
-    -- Responsive sizing based on platform
-    local frameWidth = isMobile and 0.95 or 0
-    local frameHeight = isMobile and 0.85 or 0
-    local frameWidthOffset = isMobile and 0 or 750
-    local frameHeightOffset = isMobile and 0 or 550
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "PrimeXHub"
+    gui.ResetOnSpawn = false
+    gui.IgnoreGuiInset = true
     
-    -- Main Frame
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(frameWidth, frameWidthOffset, frameHeight, frameHeightOffset)
-    mainFrame.Position = UDim2.new(0.5, isMobile and 0 or -375, 0.5, isMobile and 0 or -275)
-    mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-    mainFrame.BorderSizePixel = 0
-    mainFrame.Parent = screenGui
+    local main = Instance.new("Frame")
+    main.Name = "Main"
+    main.Size = isMobile and UDim2.new(0.95, 0, 0.85, 0) or UDim2.new(0, 700, 0, 500)
+    main.Position = UDim2.new(0.5, 0, 0.5, 0)
+    main.AnchorPoint = Vector2.new(0.5, 0.5)
+    main.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    main.BorderSizePixel = 0
+    main.Parent = gui
     
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, isMobile and 10 or 15)
-    corner.Parent = mainFrame
+    local mainCorner = Instance.new("UICorner")
+    mainCorner.CornerRadius = UDim.new(0, 12)
+    mainCorner.Parent = main
     
-    -- Make draggable only on PC
     if not isMobile then
-        makeDraggable(mainFrame)
+        makeDraggable(main)
     end
     
     -- Header
     local header = Instance.new("Frame")
-    header.Size = UDim2.new(1, 0, 0, isMobile and 50 or 60)
-    header.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    header.Size = UDim2.new(1, 0, 0, isMobile and 50 or 55)
+    header.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
     header.BorderSizePixel = 0
-    header.Parent = mainFrame
+    header.Parent = main
     
     local headerCorner = Instance.new("UICorner")
-    headerCorner.CornerRadius = UDim.new(0, isMobile and 10 or 15)
+    headerCorner.CornerRadius = UDim.new(0, 12)
     headerCorner.Parent = header
     
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(0.6, 0, 1, 0)
+    title.Size = UDim2.new(0.7, 0, 1, 0)
     title.Position = UDim2.new(0.02, 0, 0, 0)
     title.BackgroundTransparency = 1
-    title.Text = isMobile and "🤖 Prime X v2.0" or "🤖 Prime X AI Hub v2.0"
+    title.Text = isMobile and "🤖 Prime X AI" or "🤖 Prime X AI Hub"
     title.TextColor3 = Color3.fromRGB(100, 200, 255)
     title.Font = Enum.Font.GothamBold
-    title.TextSize = isMobile and 16 or 22
+    title.TextSize = isMobile and 16 or 20
     title.TextScaled = isMobile
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Parent = header
     
-    local subtitle = Instance.new("TextLabel")
-    subtitle.Size = UDim2.new(0.35, 0, 0.5, 0)
-    subtitle.Position = UDim2.new(0.63, 0, 0.5, 0)
-    subtitle.BackgroundTransparency = 1
-    subtitle.Text = "⚡ Groq AI"
-    subtitle.TextColor3 = Color3.fromRGB(150, 150, 150)
-    subtitle.Font = Enum.Font.Gotham
-    subtitle.TextSize = isMobile and 10 or 11
-    subtitle.TextScaled = isMobile
-    subtitle.TextXAlignment = Enum.TextXAlignment.Right
-    subtitle.Parent = header
-    
-    -- Close Button
     local closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.new(0, isMobile and 40 or 45, 0, isMobile and 40 or 45)
-    closeBtn.Position = UDim2.new(1, isMobile and -45 or -52, 0, isMobile and 5 or 7)
-    closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-    closeBtn.Text = "✕"
+    closeBtn.Size = UDim2.new(0, 40, 0, 40)
+    closeBtn.Position = UDim2.new(1, -45, 0, 7.5)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
+    closeBtn.Text = "×"
     closeBtn.TextColor3 = Color3.white
     closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.TextSize = isMobile and 18 or 20
+    closeBtn.TextSize = 24
     closeBtn.Parent = header
     
-    local closeBtnCorner = Instance.new("UICorner")
-    closeBtnCorner.CornerRadius = UDim.new(0, 10)
-    closeBtnCorner.Parent = closeBtn
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(0, 8)
+    closeCorner.Parent = closeBtn
     
     closeBtn.MouseButton1Click:Connect(function()
-        screenGui:Destroy()
+        gui:Destroy()
     end)
     
     -- Tabs
     local tabFrame = Instance.new("Frame")
-    local headerHeight = isMobile and 50 or 60
-    tabFrame.Size = UDim2.new(1, -20, 0, isMobile and 45 or 50)
-    tabFrame.Position = UDim2.new(0, 10, 0, headerHeight + 10)
+    tabFrame.Size = UDim2.new(1, -20, 0, 45)
+    tabFrame.Position = UDim2.new(0, 10, 0, isMobile and 60 or 65)
     tabFrame.BackgroundTransparency = 1
-    tabFrame.Parent = mainFrame
+    tabFrame.Parent = main
     
-    local tabs = isMobile and {"Gen", "Scan", "Deob", "Remote", "Chat"} or {"Generate", "Analyze", "Deobfuscate", "Remote Scan", "Chat"}
-    local currentTab = isMobile and "Gen" or "Generate"
-    local tabButtons = {}
+    local tabs = isMobile and {"Gen", "Scan", "Deob", "Remote", "Chat"} or 
+                              {"Generate", "Analyze", "Deobfuscate", "Remote Scan", "Chat"}
+    local tabBtns = {}
     
-    for i, tabName in ipairs(tabs) do
+    for i, tab in ipairs(tabs) do
         local btn = Instance.new("TextButton")
         btn.Size = UDim2.new(0.19, 0, 1, 0)
-        btn.Position = UDim2.new((i-1) * 0.2 + 0.005, 0, 0, 0)
-        local isActive = (isMobile and tabName == "Gen") or (not isMobile and tabName == "Generate")
-        btn.BackgroundColor3 = isActive and Color3.fromRGB(100, 200, 255) or Color3.fromRGB(35, 35, 40)
-        btn.Text = tabName
+        btn.Position = UDim2.new((i-1) * 0.2, 0, 0, 0)
+        btn.BackgroundColor3 = i == 1 and Color3.fromRGB(100, 200, 255) or Color3.fromRGB(40, 40, 45)
+        btn.Text = tab
         btn.TextColor3 = Color3.white
         btn.Font = Enum.Font.GothamBold
-        btn.TextSize = isMobile and 11 or 13
+        btn.TextSize = isMobile and 12 or 14
         btn.TextScaled = isMobile
         btn.Parent = tabFrame
         
         local btnCorner = Instance.new("UICorner")
-        btnCorner.CornerRadius = UDim.new(0, isMobile and 8 or 10)
+        btnCorner.CornerRadius = UDim.new(0, 8)
         btnCorner.Parent = btn
         
-        tabButtons[tabName] = btn
-        
+        tabBtns[tab] = btn
+    end
+    
+    -- Content
+    local content = Instance.new("Frame")
+    content.Name = "Content"
+    local contentTop = isMobile and 115 or 120
+    content.Size = isMobile and UDim2.new(1, -20, 1, -contentTop - 10) or UDim2.new(1, -20, 0, 365)
+    content.Position = UDim2.new(0, 10, 0, contentTop)
+    content.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    content.BorderSizePixel = 0
+    content.Parent = main
+    
+    local contentCorner = Instance.new("UICorner")
+    contentCorner.CornerRadius = UDim.new(0, 10)
+    contentCorner.Parent = content
+    
+    gui.Parent = playerGui
+    
+    -- Tab switching
+    local currentTab = tabs[1]
+    for tabName, btn in pairs(tabBtns) do
         btn.MouseButton1Click:Connect(function()
-            for name, button in pairs(tabButtons) do
-                button.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+            for _, b in pairs(tabBtns) do
+                b.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
             end
             btn.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
             currentTab = tabName
-            updateContent(mainFrame, tabName)
+            updateContent(content, tabName)
         end)
     end
     
-    -- Content Area
-    local contentFrame = Instance.new("Frame")
-    contentFrame.Name = "ContentFrame"
-    local contentTop = headerHeight + (isMobile and 60 or 70)
-    local contentHeight = isMobile and -contentTop - 10 or 410
-    contentFrame.Size = isMobile and UDim2.new(1, -20, 1, contentHeight) or UDim2.new(1, -20, 0, contentHeight)
-    contentFrame.Position = UDim2.new(0, 10, 0, contentTop)
-    contentFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-    contentFrame.BorderSizePixel = 0
-    contentFrame.Parent = mainFrame
-    
-    local contentCorner = Instance.new("UICorner")
-    contentCorner.CornerRadius = UDim.new(0, isMobile and 8 or 12)
-    contentCorner.Parent = contentFrame
-    
-    screenGui.Parent = playerGui
-    
-    -- Initialize first tab
-    updateContent(mainFrame, isMobile and "Gen" or "Generate")
-    
-    return screenGui
+    updateContent(content, currentTab)
+    return gui
 end
 
--- Generate Tab (Enhanced)
-function createGenerateTab(parent)
+-- Update content based on tab
+function updateContent(parent, tab)
     parent:ClearAllChildren()
     
+    -- Map mobile names to full names
+    local tabMap = {Gen="Generate", Scan="Analyze", Deob="Deobfuscate", Remote="Remote Scan"}
+    local fullTab = tabMap[tab] or tab
+    
+    if fullTab == "Generate" then
+        createGenerateTab(parent)
+    elseif fullTab == "Analyze" then
+        createAnalyzeTab(parent)
+    elseif fullTab == "Deobfuscate" then
+        createDeobTab(parent)
+    elseif fullTab == "Remote Scan" then
+        createRemoteTab(parent)
+    elseif fullTab == "Chat" then
+        createChatTab(parent)
+    end
+end
+
+-- Generate Tab
+function createGenerateTab(parent)
     local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -20, 0, isMobile and 20 or 25)
+    label.Size = UDim2.new(1, -20, 0, 25)
     label.Position = UDim2.new(0, 10, 0, 10)
     label.BackgroundTransparency = 1
-    label.Text = isMobile and "🎯 What to generate?" or "🎯 What script do you want to generate?"
+    label.Text = isMobile and "🎯 Describe script:" or "🎯 What script to generate?"
     label.TextColor3 = Color3.white
     label.Font = Enum.Font.GothamBold
     label.TextSize = isMobile and 14 or 16
-    label.TextScaled = isMobile
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = parent
     
-    local inputBox = Instance.new("TextBox")
-    inputBox.Size = UDim2.new(1, -20, 0, isMobile and 100 or 80)
-    inputBox.Position = UDim2.new(0, 10, 0, isMobile and 35 or 40)
-    inputBox.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-    inputBox.PlaceholderText = isMobile and "ESP, Auto-farm, etc..." or "e.g., 'ESP with health bars and distance' or 'Auto-farm with collision removal'"
-    inputBox.PlaceholderColor3 = Color3.fromRGB(100, 100, 100)
-    inputBox.Text = ""
-    inputBox.TextColor3 = Color3.white
-    inputBox.Font = Enum.Font.Gotham
-    inputBox.TextSize = isMobile and 13 or 14
-    inputBox.TextWrapped = true
-    inputBox.TextXAlignment = Enum.TextXAlignment.Left
-    inputBox.TextYAlignment = Enum.TextYAlignment.Top
-    inputBox.ClearTextOnFocus = false
-    inputBox.MultiLine = true
-    inputBox.Parent = parent
+    local input = Instance.new("TextBox")
+    input.Size = UDim2.new(1, -20, 0, isMobile and 100 or 80)
+    input.Position = UDim2.new(0, 10, 0, 40)
+    input.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    input.PlaceholderText = isMobile and "e.g., ESP script..." or "e.g., ESP with health bars, Auto-farm script"
+    input.PlaceholderColor3 = Color3.fromRGB(120, 120, 120)
+    input.Text = ""
+    input.TextColor3 = Color3.white
+    input.Font = Enum.Font.Gotham
+    input.TextSize = isMobile and 13 or 14
+    input.TextWrapped = true
+    input.TextXAlignment = Enum.TextXAlignment.Left
+    input.TextYAlignment = Enum.TextYAlignment.Top
+    input.MultiLine = true
+    input.Parent = parent
     
     local inputCorner = Instance.new("UICorner")
     inputCorner.CornerRadius = UDim.new(0, 8)
-    inputCorner.Parent = inputBox
+    inputCorner.Parent = input
     
-    local generateBtn = Instance.new("TextButton")
-    generateBtn.Size = UDim2.new(isMobile and 0.9 or 0, isMobile and 0 or 200, 0, isMobile and 50 or 45)
-    generateBtn.Position = UDim2.new(0.5, isMobile and 0 or -100, 0, isMobile and 145 or 130)
-    generateBtn.AnchorPoint = Vector2.new(0.5, 0)
-    generateBtn.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
-    generateBtn.Text = "🤖 Generate Script"
-    generateBtn.TextColor3 = Color3.white
-    generateBtn.Font = Enum.Font.GothamBold
-    generateBtn.TextSize = isMobile and 15 or 16
-    generateBtn.Parent = parent
+    local genBtn = Instance.new("TextButton")
+    genBtn.Size = isMobile and UDim2.new(0.9, 0, 0, 50) or UDim2.new(0, 200, 0, 45)
+    genBtn.Position = UDim2.new(0.5, 0, 0, isMobile and 150 or 130)
+    genBtn.AnchorPoint = Vector2.new(0.5, 0)
+    genBtn.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
+    genBtn.Text = "🤖 Generate"
+    genBtn.TextColor3 = Color3.white
+    genBtn.Font = Enum.Font.GothamBold
+    genBtn.TextSize = 16
+    genBtn.Parent = parent
     
-    local genBtnCorner = Instance.new("UICorner")
-    genBtnCorner.CornerRadius = UDim.new(0, 10)
-    genBtnCorner.Parent = generateBtn
+    local genCorner = Instance.new("UICorner")
+    genCorner.CornerRadius = UDim.new(0, 10)
+    genCorner.Parent = genBtn
     
-    local outputScroll = Instance.new("ScrollingFrame")
-    local outputTop = isMobile and 205 or 185
-    local outputHeight = isMobile and -outputTop - 20 or 215
-    outputScroll.Size = isMobile and UDim2.new(1, -20, 1, outputHeight) or UDim2.new(1, -20, 0, outputHeight)
-    outputScroll.Position = UDim2.new(0, 10, 0, outputTop)
-    outputScroll.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-    outputScroll.ScrollBarThickness = isMobile and 6 or 8
-    outputScroll.BorderSizePixel = 0
-    outputScroll.Visible = false
-    outputScroll.Parent = parent
+    local output = Instance.new("ScrollingFrame")
+    local outTop = isMobile and 210 or 185
+    local outHeight = isMobile and -outTop - 20 or 150
+    output.Size = isMobile and UDim2.new(1, -20, 1, outHeight) or UDim2.new(1, -20, 0, outHeight)
+    output.Position = UDim2.new(0, 10, 0, outTop)
+    output.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+    output.ScrollBarThickness = 6
+    output.BorderSizePixel = 0
+    output.Visible = false
+    output.Parent = parent
     
-    local outputCorner = Instance.new("UICorner")
-    outputCorner.CornerRadius = UDim.new(0, 8)
-    outputCorner.Parent = outputScroll
+    local outCorner = Instance.new("UICorner")
+    outCorner.CornerRadius = UDim.new(0, 8)
+    outCorner.Parent = output
     
-    local outputText = Instance.new("TextLabel")
-    outputText.Size = UDim2.new(1, -10, 1, 0)
-    outputText.Position = UDim2.new(0, 5, 0, 5)
-    outputText.BackgroundTransparency = 1
-    outputText.Text = ""
-    outputText.TextColor3 = Color3.fromRGB(100, 255, 100)
-    outputText.Font = Enum.Font.Code
-    outputText.TextSize = isMobile and 11 or 12
-    outputText.TextXAlignment = Enum.TextXAlignment.Left
-    outputText.TextYAlignment = Enum.TextYAlignment.Top
-    outputText.TextWrapped = true
-    outputText.Parent = outputScroll
+    local outText = Instance.new("TextLabel")
+    outText.Size = UDim2.new(1, -10, 1, 0)
+    outText.Position = UDim2.new(0, 5, 0, 5)
+    outText.BackgroundTransparency = 1
+    outText.Text = ""
+    outText.TextColor3 = Color3.fromRGB(100, 255, 100)
+    outText.Font = Enum.Font.Code
+    outText.TextSize = 12
+    outText.TextXAlignment = Enum.TextXAlignment.Left
+    outText.TextYAlignment = Enum.TextYAlignment.Top
+    outText.TextWrapped = true
+    outText.Parent = output
     
-    generateBtn.MouseButton1Click:Connect(function()
-        local desc = inputBox.Text
-        if desc == "" then
-            outputText.Text = "⚠️ Please enter a description!"
-            outputText.TextColor3 = Color3.fromRGB(255, 100, 100)
-            outputScroll.Visible = true
+    genBtn.MouseButton1Click:Connect(function()
+        if input.Text == "" then
+            outText.Text = "⚠️ Enter a description!"
+            outText.TextColor3 = Color3.fromRGB(255, 100, 100)
+            output.Visible = true
             return
         end
         
-        generateBtn.Text = "⏳ Generating..."
-        generateBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
+        genBtn.Text = "⏳ Generating..."
+        genBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
         
-        local gameInfo = getGameInfo()
+        local info = getGameInfo()
         local result = aiRequest("/generate-script", {
-            description = desc,
-            game = gameInfo.name,
-            placeId = gameInfo.placeId
+            description = input.Text,
+            game = info.name,
+            placeId = info.placeId
         })
         
         if result and result.success then
-            outputText.Text = result.script
-            outputText.TextColor3 = Color3.fromRGB(100, 255, 100)
-            outputScroll.Visible = true
-            outputScroll.CanvasSize = UDim2.new(0, 0, 0, outputText.TextBounds.Y + 10)
+            outText.Text = result.script
+            outText.TextColor3 = Color3.fromRGB(100, 255, 100)
+            output.Visible = true
+            output.CanvasSize = UDim2.new(0, 0, 0, outText.TextBounds.Y + 10)
             
-            -- Try to copy to clipboard
-            local copied = safeSetClipboard(result.script)
-            if copied then
-                generateBtn.Text = "✅ Copied to Clipboard!"
+            if safeSetClipboard(result.script) then
+                genBtn.Text = "✅ Copied!"
             else
-                generateBtn.Text = "✅ Generated! (Manual copy)"
+                genBtn.Text = "✅ Done!"
             end
             wait(2)
         else
-            outputText.Text = "❌ Error: Failed to generate script. Check API connection."
-            outputText.TextColor3 = Color3.fromRGB(255, 100, 100)
-            outputScroll.Visible = true
+            outText.Text = "❌ Error: Check API connection or try again"
+            outText.TextColor3 = Color3.fromRGB(255, 100, 100)
+            output.Visible = true
         end
         
-        generateBtn.Text = "🤖 Generate Script"
-        generateBtn.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
+        genBtn.Text = "🤖 Generate"
+        genBtn.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
     end)
 end
 
--- Analyze Tab (Enhanced)
+-- Analyze Tab
 function createAnalyzeTab(parent)
-    parent:ClearAllChildren()
-    
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(1, -20, 0, 25)
     label.Position = UDim2.new(0, 10, 0, 10)
@@ -452,7 +428,7 @@ function createAnalyzeTab(parent)
     label.Parent = parent
     
     local detectBtn = Instance.new("TextButton")
-    detectBtn.Size = UDim2.new(0, 200, 0, 40)
+    detectBtn.Size = isMobile and UDim2.new(0.48, 0, 0, 40) or UDim2.new(0, 200, 0, 40)
     detectBtn.Position = UDim2.new(0, 10, 0, 45)
     detectBtn.BackgroundColor3 = Color3.fromRGB(255, 150, 50)
     detectBtn.Text = "🔎 Detect Tools"
@@ -466,10 +442,10 @@ function createAnalyzeTab(parent)
     detectCorner.Parent = detectBtn
     
     local analyzeBtn = Instance.new("TextButton")
-    analyzeBtn.Size = UDim2.new(0, 200, 0, 40)
-    analyzeBtn.Position = UDim2.new(0, 220, 0, 45)
+    analyzeBtn.Size = isMobile and UDim2.new(0.48, 0, 0, 40) or UDim2.new(0, 200, 0, 40)
+    analyzeBtn.Position = isMobile and UDim2.new(0.52, 0, 0, 45) or UDim2.new(0, 220, 0, 45)
     analyzeBtn.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
-    analyzeBtn.Text = "🤖 AI Analyze Game"
+    analyzeBtn.Text = "🤖 AI Analyze"
     analyzeBtn.TextColor3 = Color3.white
     analyzeBtn.Font = Enum.Font.GothamBold
     analyzeBtn.TextSize = 14
@@ -479,56 +455,118 @@ function createAnalyzeTab(parent)
     analyzeCorner.CornerRadius = UDim.new(0, 8)
     analyzeCorner.Parent = analyzeBtn
     
-    local resultScroll = Instance.new("ScrollingFrame")
-    resultScroll.Size = UDim2.new(1, -20, 0, 310)
-    resultScroll.Position = UDim2.new(0, 10, 0, 95)
-    resultScroll.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-    resultScroll.ScrollBarThickness = 8
-    resultScroll.BorderSizePixel = 0
-    resultScroll.Parent = parent
+    local result = Instance.new("ScrollingFrame")
+    local resHeight = isMobile and -105 or 280
+    result.Size = isMobile and UDim2.new(1, -20, 1, resHeight) or UDim2.new(1, -20, 0, resHeight)
+    result.Position = UDim2.new(0, 10, 0, 95)
+    result.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+    result.ScrollBarThickness = 6
+    result.BorderSizePixel = 0
+    result.Parent = parent
     
-    local resultCorner = Instance.new("UICorner")
-    resultCorner.CornerRadius = UDim.new(0, 8)
-    resultCorner.Parent = resultScroll
+    local resCorner = Instance.new("UICorner")
+    resCorner.CornerRadius = UDim.new(0, 8)
+    resCorner.Parent = result
     
-    local resultText = Instance.new("TextLabel")
-    resultText.Size = UDim2.new(1, -10, 1, 0)
-    resultText.Position = UDim2.new(0, 5, 0, 5)
-    resultText.BackgroundTransparency = 1
-    resultText.Text = "Click a button to start analysis..."
-    resultText.TextColor3 = Color3.fromRGB(180, 180, 180)
-    resultText.Font = Enum.Font.Gotham
-    resultText.TextSize = 13
-    resultText.TextXAlignment = Enum.TextXAlignment.Left
-    resultText.TextYAlignment = Enum.TextYAlignment.Top
-    resultText.TextWrapped = true
-    resultText.Parent = resultScroll
+    local resText = Instance.new("TextLabel")
+    resText.Size = UDim2.new(1, -10, 1, 0)
+    resText.Position = UDim2.new(0, 5, 0, 5)
+    resText.BackgroundTransparency = 1
+    resText.Text = "Click a button to start..."
+    resText.TextColor3 = Color3.fromRGB(180, 180, 180)
+    resText.Font = Enum.Font.Gotham
+    resText.TextSize = 13
+    resText.TextXAlignment = Enum.TextXAlignment.Left
+    resText.TextYAlignment = Enum.TextYAlignment.Top
+    resText.TextWrapped = true
+    resText.Parent = result
     
     detectBtn.MouseButton1Click:Connect(function()
         detectBtn.Text = "🔍 Scanning..."
         
         local tools = detectExploitTools()
-        local gameInfo = getGameInfo()
+        local info = getGameInfo()
         
-        local report = "=== TOOL DETECTION REPORT ===\n\n"
-        report = report .. "Game: " .. gameInfo.name .. "\n"
-        report = report .. "Place ID: " .. gameInfo.placeId .. "\n"
-        report = report .. "Players: " .. gameInfo.players .. "/" .. gameInfo.maxPlayers .. "\n\n"
-        report = report .. "--- Detected Tools ---\n"
-        report = report .. "Dex Explorer: " .. (tools.dex and "✅ DETECTED" or "❌ Not Found") .. "\n"
-        report = report .. "Remote Spy: " .. (tools.remoteSpy and "✅ DETECTED" or "❌ Not Found") .. "\n\n"
+        local report = "=== TOOL DETECTION ===\n\n"
+        report = report .. "Game: " .. info.name .. "\n"
+        report = report .. "Place ID: " .. info.placeId .. "\n"
+        report = report .. "Players: " .. info.players .. "/" .. info.maxPlayers .. "\n\n"
+        report = report .. "Dex Explorer: " .. (tools.dex and "✅ FOUND" or "❌ Not Found") .. "\n"
+        report = report .. "Remote Spy: " .. (tools.remoteSpy and "✅ FOUND" or "❌ Not Found") .. "\n\n"
         
         if tools.dex or tools.remoteSpy then
-            report = report .. "💡 Tools are active! You can use them to:\n"
-            if tools.dex then
-                report = report .. "  • Browse game hierarchy\n"
-                report = report .. "  • Find hidden objects\n"
-                report = report .. "  • Inspect properties\n"
-            end
-            if tools.remoteSpy then
-                report = report .. "  • Monitor remote events\n"
-                report = report .. "  • Log remote calls\n"
-                report = report .. "  • Find exploitable remotes\n"
-            end
+            report = report .. "💡 Active tools detected!\n"
         else
-            report = report .. "ℹ️ No exploit tools det
+            report = report .. "ℹ️ No tools detected. Load Dex/RemoteSpy for better analysis.\n"
+        end
+        
+        resText.Text = report
+        resText.TextColor3 = Color3.fromRGB(100, 255, 100)
+        result.CanvasSize = UDim2.new(0, 0, 0, resText.TextBounds.Y + 10)
+        
+        detectBtn.Text = "🔎 Detect Tools"
+    end)
+    
+    analyzeBtn.MouseButton1Click:Connect(function()
+        analyzeBtn.Text = "⏳ Analyzing..."
+        analyzeBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
+        
+        local info = getGameInfo()
+        local aiResult = aiRequest("/analyze-game", {
+            game_id = tostring(info.placeId),
+            game_name = info.name
+        })
+        
+        if aiResult and aiResult.success then
+            resText.Text = "=== AI ANALYSIS ===\n\n" .. aiResult.analysis
+            resText.TextColor3 = Color3.fromRGB(100, 200, 255)
+            result.CanvasSize = UDim2.new(0, 0, 0, resText.TextBounds.Y + 10)
+        else
+            resText.Text = "❌ Failed to analyze. Check API or try again."
+            resText.TextColor3 = Color3.fromRGB(255, 100, 100)
+        end
+        
+        analyzeBtn.Text = "🤖 AI Analyze"
+        analyzeBtn.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
+    end)
+end
+
+-- Deobfuscate Tab
+function createDeobTab(parent)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -20, 0, 25)
+    label.Position = UDim2.new(0, 10, 0, 10)
+    label.BackgroundTransparency = 1
+    label.Text = "🔓 Deobfuscator"
+    label.TextColor3 = Color3.white
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 16
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = parent
+    
+    local input = Instance.new("TextBox")
+    input.Size = UDim2.new(1, -20, 0, isMobile and 100 or 100)
+    input.Position = UDim2.new(0, 10, 0, 40)
+    input.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    input.PlaceholderText = "Paste obfuscated code here..."
+    input.PlaceholderColor3 = Color3.fromRGB(120, 120, 120)
+    input.Text = ""
+    input.TextColor3 = Color3.white
+    input.Font = Enum.Font.Code
+    input.TextSize = 12
+    input.TextWrapped = true
+    input.TextXAlignment = Enum.TextXAlignment.Left
+    input.TextYAlignment = Enum.TextYAlignment.Top
+    input.MultiLine = true
+    input.Parent = parent
+    
+    local inputCorner = Instance.new("UICorner")
+    inputCorner.CornerRadius = UDim.new(0, 8)
+    inputCorner.Parent = input
+    
+    local deobBtn = Instance.new("TextButton")
+    deobBtn.Size = isMobile and UDim2.new(0.9, 0, 0, 45) or UDim2.new(0, 220, 0, 40)
+    deobBtn.Position = UDim2.new(0.5, 0, 0, isMobile and 150 or 150)
+    deobBtn.AnchorPoint = Vector2.new(0.5, 0)
+    deobBtn.BackgroundColor3 = Color3.fromRGB(150, 100, 255)
+    deobBtn.Text = "🔓 Deobfuscate
