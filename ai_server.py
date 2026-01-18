@@ -9,8 +9,12 @@ app = Flask(__name__)
 CORS(app)
 
 # Groq API Configuration
-GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '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')
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY')
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+if not GROQ_API_KEY:
+    print("⚠️  WARNING: GROQ_API_KEY not set in environment variables!")
+    print("   Please add it in Render dashboard under Environment tab")
 
 # Cache for generated scripts (save API calls)
 script_cache = {}
@@ -311,7 +315,12 @@ if __name__ == '__main__':
     print("🚀 Starting Prime X AI Hub...")
     print("🤖 Powered by Groq (Llama 3.1 70B)")
     print("="*60)
-    print(f"✅ Groq API Key: {GROQ_API_KEY[:20]}...")
+    
+    if GROQ_API_KEY:
+        print(f"✅ Groq API Key: {GROQ_API_KEY[:20]}...")
+    else:
+        print("❌ Groq API Key: NOT SET - Please add to environment variables!")
+    
     print("="*60)
     print("📋 Available Features:")
     print("  - Script Generation")
