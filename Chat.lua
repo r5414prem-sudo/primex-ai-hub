@@ -1,7 +1,7 @@
 -- ═══════════════════════════════════════════════════════════
 --  💬 UNIVERSAL CROSS-GAME CHAT
 --  Ultra Aesthetic • Mobile Optimized • Smooth Animations
---  Version 3.0
+--  Version 3.0 - COMPLETE & OPTIMIZED
 -- ═══════════════════════════════════════════════════════════
 
 local Players = game:GetService("Players")
@@ -13,7 +13,7 @@ local LocalPlayer = Players.LocalPlayer
 
 -- ⚙️ CONFIGURATION
 local CONFIG = {
-    SERVER_URL = "https://your-server-url.onrender.com",  -- 🔴 CHANGE THIS!
+    SERVER_URL = "https://roblox-chat-server-z35g.onrender.com",
     UPDATE_INTERVAL = 2,
     MAX_MESSAGE_LENGTH = 500,
     ANIMATION_SPEED = 0.35,
@@ -43,18 +43,19 @@ local httpRequest = (syn and syn.request) or (http and http.request) or
                     http_request or (fluxus and fluxus.request) or request
 
 if not httpRequest then
-    warn("⚠️ Your executor doesn't support HTTP requests!")
+    LocalPlayer:Kick("⚠️ Your executor doesn't support HTTP requests!")
     return
 end
 
 -- STATE
 local State = {
-    lastMessageTime = nil,
+    lastMessageTime = 0,
     isMinimized = false,
     unreadCount = 0,
     currentGame = "Unknown Game",
     isLoading = false,
-    isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+    isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled,
+    onlineUsers = 0
 }
 
 -- Get game name
@@ -233,7 +234,7 @@ miniButton.Parent = miniBar
 -- ═══════════════════════════════════════════════════════════
 
 local titleBar = Instance.new("Frame")
-titleBar.Size = UDim2.new(1, 0, 0, State.isMobile and 70 : 60)
+titleBar.Size = UDim2.new(1, 0, 0, State.isMobile and 70 or 60)
 titleBar.BackgroundColor3 = CONFIG.COLORS.Surface
 titleBar.BackgroundTransparency = 0.2
 titleBar.BorderSizePixel = 0
@@ -407,7 +408,7 @@ local closeBtn = createButton("✕", CONFIG.COLORS.Danger, State.isMobile and -4
 
 local chatContainer = Instance.new("Frame")
 chatContainer.Size = UDim2.new(1, 0, 1, State.isMobile and -160 or -150)
-chatContainer.Position = UDim2.new(0, 0, 0, State.isMobile and 70 : 60)
+chatContainer.Position = UDim2.new(0, 0, 0, State.isMobile and 70 or 60)
 chatContainer.BackgroundTransparency = 1
 chatContainer.BorderSizePixel = 0
 chatContainer.Parent = mainFrame
@@ -417,7 +418,7 @@ chatFrame.Size = UDim2.new(1, -20, 1, -10)
 chatFrame.Position = UDim2.new(0, 10, 0, 5)
 chatFrame.BackgroundTransparency = 1
 chatFrame.BorderSizePixel = 0
-chatFrame.ScrollBarThickness = State.isMobile and 6 : 5
+chatFrame.ScrollBarThickness = State.isMobile and 6 or 5
 chatFrame.ScrollBarImageColor3 = CONFIG.COLORS.Accent
 chatFrame.ScrollBarImageTransparency = 0.5
 chatFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
@@ -427,7 +428,7 @@ chatFrame.Parent = chatContainer
 
 local chatLayout = Instance.new("UIListLayout")
 chatLayout.SortOrder = Enum.SortOrder.LayoutOrder
-chatLayout.Padding = UDim.new(0, State.isMobile and 14 : 12)
+chatLayout.Padding = UDim.new(0, State.isMobile and 14 or 12)
 chatLayout.Parent = chatFrame
 
 -- ═══════════════════════════════════════════════════════════
@@ -435,14 +436,14 @@ chatLayout.Parent = chatFrame
 -- ═══════════════════════════════════════════════════════════
 
 local inputContainer = Instance.new("Frame")
-inputContainer.Size = UDim2.new(1, -20, 0, State.isMobile and 80 : 70)
-inputContainer.Position = UDim2.new(0, 10, 1, State.isMobile and -90 : -80)
+inputContainer.Size = UDim2.new(1, -20, 0, State.isMobile and 80 or 70)
+inputContainer.Position = UDim2.new(0, 10, 1, State.isMobile and -90 or -80)
 inputContainer.BackgroundColor3 = CONFIG.COLORS.Surface
 inputContainer.BorderSizePixel = 0
 inputContainer.Parent = mainFrame
 
 local inputCorner = Instance.new("UICorner")
-inputCorner.CornerRadius = UDim.new(0, State.isMobile and 20 : 16)
+inputCorner.CornerRadius = UDim.new(0, State.isMobile and 20 or 16)
 inputCorner.Parent = inputContainer
 
 local inputStroke = Instance.new("UIStroke")
@@ -452,7 +453,7 @@ inputStroke.Transparency = 0.6
 inputStroke.Parent = inputContainer
 
 local textBox = Instance.new("TextBox")
-textBox.Size = UDim2.new(1, State.isMobile and -90 : -85, 1, -16)
+textBox.Size = UDim2.new(1, State.isMobile and -90 or -85, 1, -16)
 textBox.Position = UDim2.new(0, 15, 0, 8)
 textBox.BackgroundTransparency = 1
 textBox.Text = ""
@@ -460,27 +461,54 @@ textBox.PlaceholderText = "Type your message..."
 textBox.TextColor3 = CONFIG.COLORS.TextPrimary
 textBox.PlaceholderColor3 = CONFIG.COLORS.TextMuted
 textBox.Font = Enum.Font.Gotham
-textBox.TextSize = State.isMobile and 16 : 14
+textBox.TextSize = State.isMobile and 16 or 14
 textBox.TextXAlignment = Enum.TextXAlignment.Left
 textBox.TextWrapped = true
 textBox.ClearTextOnFocus = false
 textBox.Parent = inputContainer
 
+-- Character counter
+local charCounter = Instance.new("TextLabel")
+charCounter.Size = UDim2.new(0, 60, 0, 16)
+charCounter.Position = UDim2.new(1, -70, 1, -20)
+charCounter.BackgroundTransparency = 1
+charCounter.Text = "0/" .. CONFIG.MAX_MESSAGE_LENGTH
+charCounter.TextColor3 = CONFIG.COLORS.TextMuted
+charCounter.Font = Enum.Font.Gotham
+charCounter.TextSize = 10
+charCounter.TextXAlignment = Enum.TextXAlignment.Right
+charCounter.Parent = inputContainer
+
+-- Update character counter
+textBox:GetPropertyChangedSignal("Text"):Connect(function()
+    local len = #textBox.Text
+    charCounter.Text = len .. "/" .. CONFIG.MAX_MESSAGE_LENGTH
+    
+    if len > CONFIG.MAX_MESSAGE_LENGTH then
+        charCounter.TextColor3 = CONFIG.COLORS.Danger
+        textBox.Text = textBox.Text:sub(1, CONFIG.MAX_MESSAGE_LENGTH)
+    elseif len > CONFIG.MAX_MESSAGE_LENGTH * 0.9 then
+        charCounter.TextColor3 = CONFIG.COLORS.Warning
+    else
+        charCounter.TextColor3 = CONFIG.COLORS.TextMuted
+    end
+end)
+
 -- Send Button
 local sendBtn = Instance.new("TextButton")
 sendBtn.Size = State.isMobile and UDim2.new(0, 64, 0, 64) or UDim2.new(0, 60, 0, 56)
-sendBtn.Position = UDim2.new(1, State.isMobile and -72 : -68, 0.5, State.isMobile and -32 : -28)
+sendBtn.Position = UDim2.new(1, State.isMobile and -72 or -68, 0.5, State.isMobile and -32 or -28)
 sendBtn.BackgroundColor3 = CONFIG.COLORS.Accent
 sendBtn.BorderSizePixel = 0
 sendBtn.Text = "➤"
 sendBtn.TextColor3 = CONFIG.COLORS.TextPrimary
 sendBtn.Font = Enum.Font.GothamBold
-sendBtn.TextSize = State.isMobile and 24 : 22
+sendBtn.TextSize = State.isMobile and 24 or 22
 sendBtn.AutoButtonColor = false
 sendBtn.Parent = inputContainer
 
 local sendCorner = Instance.new("UICorner")
-sendCorner.CornerRadius = UDim.new(0, State.isMobile and 18 : 14)
+sendCorner.CornerRadius = UDim.new(0, State.isMobile and 18 or 14)
 sendCorner.Parent = sendBtn
 
 -- Send button animations
@@ -509,7 +537,7 @@ textBox.Focused:Connect(function()
     }):Play()
     
     TweenService:Create(inputContainer, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
-        Size = UDim2.new(1, -20, 0, State.isMobile and 85 : 75)
+        Size = UDim2.new(1, -20, 0, State.isMobile and 85 or 75)
     }):Play()
 end)
 
@@ -521,7 +549,7 @@ textBox.FocusLost:Connect(function()
     }):Play()
     
     TweenService:Create(inputContainer, TweenInfo.new(0.3), {
-        Size = UDim2.new(1, -20, 0, State.isMobile and 80 : 70)
+        Size = UDim2.new(1, -20, 0, State.isMobile and 80 or 70)
     }):Play()
 end)
 
@@ -549,39 +577,4 @@ end
 titleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or 
        input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = mainFrame.Position
-        
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
-    end
-end)
-
-titleBar.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or 
-       input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and input == dragInput then
-        updateDrag(input)
-    end
-end)
-
--- ═══════════════════════════════════════════════════════════
---  🛠️ HELPER FUNCTIONS
--- ═══════════════════════════════════════════════════════════
-
-local function formatTime(isoTime)
-    local year, month, day, hour, min = isoTime:match("(%d+)-(%d+)-(%d+)T(%d+):(%d+)")
-    if hour and min then
-        local h = tonumber(hour)
-        local m = tonumber(min)
-        local ampm = h >= 12 and "PM" or "AM"
-        h = h
+        dra
